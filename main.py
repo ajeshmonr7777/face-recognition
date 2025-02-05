@@ -4,7 +4,7 @@ from collections import deque
 import time
 import requests
 
-url = "http://13.60.81.238:5000"
+url = "http://16.171.21.212:80"
 
 
 cap = cv2.VideoCapture(1)
