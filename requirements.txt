@@ -6,3 +6,4 @@ opencv_python_headless
 Requests
 torch
 ultralytics
+opencv-python
