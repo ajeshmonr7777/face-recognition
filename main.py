@@ -4,7 +4,7 @@ from collections import deque
 import time
 import requests
 
-url = "http://127.0.0.1:5000/"
+url = "http://13.60.81.238:5000"
 
 
 cap = cv2.VideoCapture(1)
@@ -24,7 +24,7 @@ while True:
         break
 
     cv2.imwrite("test_image.jpg", frame)
-    
+
     payload = {
         "phone_detection_history": list(phone_detection_history),
         "freeze_history": list(freeze_history),
