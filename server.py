@@ -72,65 +72,71 @@ def face_recognition(img):
     
     return {"match": True, "name": best_match, "score": best_score}
 
+
 @app.route("/recognize", methods=["POST"])
 def recognize():
-    file = request.files['image']
-    phone_detection_history = request.files["phone_detection_history"]
-    freez_history = request.files["freez_history"]
-    frs_cooldown =   request.files["frs_cooldown"]
-    cooldown_start_time =  request.files["cooldown_start_time"]
-
+    # Get the image file
+    file = request.files["image"]
     img = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
 
+    # Deserialize JSON data from request
+    payload = json.loads(request.form["json"])
+
+    phone_detection_history = deque(payload["phone_detection_history"], maxlen=50)
+    freeze_history = deque(payload["freeze_history"], maxlen=10)
+    frs_cooldown = payload["frs_cooldown"]
+    cooldown_start_time = payload["cooldown_start_time"]
+
+    # Perform phone detection
     results = detect_phone(img)
     phone_detected = False
     phone_area_threshold = 0.45 * img.shape[0] * img.shape[1]
 
     for result in results:
-        # Check if any detected object is a "phone" (assuming class ID for phone is known)
         for box in result.boxes:
-            # print(box)
-            class_id = int(box.cls)  # Get the class ID of the detected object
+            class_id = int(box.cls)  
             conf = box.conf
-            if class_id == 0 and conf > 0.3:  # Replace 67 with the class ID for "phone" in your model
+            if class_id == 0 and conf > 0.3:
                 phone_detected = True
-                # Calculate the area of the detected phone
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
                 phone_area = (x2 - x1) * (y2 - y1)
+
                 if phone_area >= phone_area_threshold:
-                    # If the phone area is 20% or more of the frame, start the cooldown
                     freeze_history.append(True)
                     majority_freeze_history = max(set(freeze_history), key=freeze_history.count)
                     if majority_freeze_history and len(freeze_history) == 10:
-                       frs_cooldown = True
-                       cooldown_start_time = time.time()
+                        frs_cooldown = True
+                        cooldown_start_time = time.time()
                 else:
                     freeze_history.append(False)
                 break
 
     phone_detection_history.append(phone_detected)
     majority_phone_detected = max(set(phone_detection_history), key=phone_detection_history.count)
+
+    # Reset cooldown after 20 seconds
     if frs_cooldown and (time.time() - cooldown_start_time) >= 20:
-        frs_cooldown = False  # Reset the cooldown flag after 20 seconds
+        frs_cooldown = False
 
     if len(phone_detection_history) < 2:
         phone_detection_history.append(False)
 
-    # If no phone is detected, pass the frame to the frs function
+    # Perform face recognition if no phone is detected and no cooldown
     person_name = None
     if not majority_phone_detected and not phone_detected and not phone_detection_history[-2] and not frs_cooldown:
         frs_result = face_recognition(img)
-
-        if "name" in frs_cooldown:
+        if "name" in frs_result:
             person_name = frs_result["name"]
-    
+
+    # Return the updated state as JSON
     return jsonify({
-        "name" : person_name,
-        "phone_detection_history" : phone_detection_history,
-        "freez_history" : freez_history,
-        "frs_cooldown" : frs_cooldown,
-        "cooldown_start_time" : cooldown_start_time
+        "name": person_name,
+        "phone_detection_history": list(phone_detection_history),  # Convert deque to list
+        "freeze_history": list(freeze_history),  # Convert deque to list
+        "frs_cooldown": frs_cooldown,
+        "cooldown_start_time": cooldown_start_time
     })
+
 
         
 

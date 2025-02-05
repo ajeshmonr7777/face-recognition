@@ -24,14 +24,16 @@ while True:
         break
 
     cv2.imwrite("test_image.jpg", frame)
-    files = {
-        "image": open("test_image.jpg", "rb"),
-        "phone_detection_history" : phone_detection_history,
-        "freez_history" : freez_history,
-        "frs_cooldown" : frs_cooldown,
-        "cooldown_start_time" : cooldown_start_time
+    
+    payload = {
+        "phone_detection_history": list(phone_detection_history),
+        "freeze_history": list(freeze_history),
+        "frs_cooldown": frs_cooldown,
+        "cooldown_start_time": cooldown_start_time
     }
-    response = requests.post(url+"recognize", files=files)
+
+    files = {"image": open("test_image.jpg", "rb")}
+    response = requests.post(url + "recognize", files=files, data={"json": json.dumps(payload)})
 
     response = response.json()
     person_name = response["name"]
