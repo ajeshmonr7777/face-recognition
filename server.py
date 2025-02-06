@@ -1,8 +1,9 @@
 import os
-import cv2
+# import cv2
 import numpy as np
 import json
 import torch
+from ultralytics import YOLO
 from collections import deque
 from flask import Flask, request, jsonify
 from insightface.app import FaceAnalysis
