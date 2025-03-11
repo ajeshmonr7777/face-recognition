@@ -7,6 +7,8 @@ import requests
 # Load the YOLO model
 model = YOLO("best.pt")  # Replace with your trained model file
 
+model2 = YOLO("fake_detection.pt")  # Replace with your trained model file
+
 # Initialize the webcam
 cap = cv2.VideoCapture(1)  # 0 is usually the default webcam
 
@@ -35,63 +37,95 @@ def frs(frame):
         return None
 
 
-phone_detection_history = deque(maxlen=50)
-freeze_history = deque(maxlen=10)
+phone_detection_history = deque(maxlen=25)
+fake_detection_history = deque(maxlen=25)
 frs_cooldown = False  # Flag to control the cooldown period
 cooldown_start_time = 0  # Variable to store the start time of the cooldown
+
+# Check if a phone is detected in the frame
+fake_face_detected = False
+phone_detected = False
+majority_phone_detected = False
+majority_fake_detected = False
+person_name = None
+frame_count = 0
 while True:
     # Capture frame-by-frame
     ret, frame = cap.read()
     if not ret:
         print("Error: Failed to capture image.")
         break
+    
+    frame_count+=1
 
     # Perform inference on the frame
-    results = model(frame)  # Pass the frame to the YOLO model
+    if frame_count%3 == 0:
 
-    # Check if a phone is detected in the frame
-    phone_detected = False
-    phone_area_threshold = 0.45 * frame.shape[0] * frame.shape[1]
+        results = model(frame)  # Pass the frame to the YOLO model
 
-    for result in results:
-        # Check if any detected object is a "phone" (assuming class ID for phone is known)
-        for box in result.boxes:
-            # print(box)
-            class_id = int(box.cls)  # Get the class ID of the detected object
-            conf = box.conf
-            if class_id == 0 and conf > 0.3:  # Replace 67 with the class ID for "phone" in your model
-                phone_detected = True
-                # Calculate the area of the detected phone
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                phone_area = (x2 - x1) * (y2 - y1)
-                if phone_area >= phone_area_threshold:
-                    # If the phone area is 20% or more of the frame, start the cooldown
-                    freeze_history.append(True)
-                    majority_freeze_history = max(set(freeze_history), key=freeze_history.count)
-                    if majority_freeze_history and len(freeze_history) == 10:
-                       frs_cooldown = True
-                       cooldown_start_time = time.time()
-                else:
-                    freeze_history.append(False)
-                break
+        # Check if a phone is detected in the frame
+        phone_detected = False
 
-    phone_detection_history.append(phone_detected)
+        for result in results:
+            # Check if any detected object is a "phone" (assuming class ID for phone is known)
+            for box in result.boxes:
+                # print(box)
+                class_id = int(box.cls)  # Get the class ID of the detected object
+                conf = box.conf
+                if class_id == 0 and conf > 0.3:  # Replace 67 with the class ID for "phone" in your model
+                    phone_detected = True
+                    break
 
-    majority_phone_detected = max(set(phone_detection_history), key=phone_detection_history.count)
+        phone_detection_history.append(phone_detected)
 
-    if frs_cooldown and (time.time() - cooldown_start_time) >= 20:
-        frs_cooldown = False  # Reset the cooldown flag after 20 seconds
+        majority_phone_detected = max(set(phone_detection_history), key=phone_detection_history.count)
+
+        # Perform inference on the frame
+    if frame_count%3 == 1:
+
+        results = model2(frame)  # Pass the frame to the YOLO model
+
+        # Check if a phone is detected in the frame
+        fake_face_detected = False
+
+        for result in results:
+            # Check if any detected object is a "phone" (assuming class ID for phone is known)
+            for box in result.boxes:
+                # print(box)
+                class_id = int(box.cls)  # Get the class ID of the detected object
+                conf = box.conf
+                if class_id == 1 and conf > 0.5:  # Replace 67 with the class ID for "phone" in your model
+                    fake_face_detected = True
+                    break
+
+        fake_detection_history.append(fake_face_detected)
+
+        majority_fake_detected = max(set(fake_detection_history), key=fake_detection_history.count)
+
 
     if len(phone_detection_history) < 2:
         phone_detection_history.append(False)
+        phone_detection_history.append(False)
+    if len(fake_detection_history) < 2:
+        fake_detection_history.append(False)
+        fake_detection_history.append(False)
     # If no phone is detected, pass the frame to the frs function
-    if not majority_phone_detected and not phone_detected and not phone_detection_history[-2] and not frs_cooldown:
+    condition1 = (not majority_phone_detected and not phone_detected and not phone_detection_history[-2]) 
+    condition2 = (not majority_fake_detected and not fake_face_detected and not fake_detection_history[-2])
+
+    print('Phone Detected : ',phone_detected)
+    print('Majority Detected : ',majority_phone_detected)
+
+    if condition1 and condition2 and frame_count%3 == 2:
         person_name = frs(frame)  # Call the face recognition system
         if person_name:
             print(f"Person detected: {person_name}")
             # Optionally, display the name on the frame
-            cv2.putText(frame, f"Person: {person_name}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            
 
+    if condition1 and condition2:
+        if person_name:
+            cv2.putText(frame, f"Person: {person_name}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
     # Display the frame with annotations
     for result in results:
         # frame = result.plot()  # Annotate the frame with YOLO detections
