@@ -40,6 +40,20 @@ def upload_reference():
     
     return jsonify({"message": "Reference face added successfully"})
 
+@app.route("/delete_reference", methods=["POST"])
+def delete_reference():
+    name = request.form.get("name")
+    
+    if not name:
+        return jsonify({"error": "Name is required"}), 400
+    
+    if name in face_db:
+        del face_db[name]
+        save_face_db()
+        return jsonify({"message": f"Face '{name}' deleted successfully"})
+    else:
+        return jsonify({"error": f"Face '{name}' not found in the database"}), 404
+
 @app.route("/recognize", methods=["POST"])
 def recognize():
     file = request.files['image']
